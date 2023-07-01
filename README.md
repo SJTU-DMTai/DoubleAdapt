@@ -4,7 +4,7 @@ This repo provides our **API** of `DoubleAdapt` [[arXiv](https://arxiv.org/abs/2
 
 We reorganize our codes to provide API under the folder `src/` which have **NO** dependencies on qlib.
 
-To give a example program, we use some qlib API (including qlib data and qlib model zoo) in `main.py` 
+To give an example program, we use some qlib API (including qlib data and qlib model zoo) in `main.py` 
 which you should put it under `examples/benchmarks_dynamic/incremenetal/` of the qlib repo [SJTU-Quant/qlib](https://github.com/SJTU-Quant/qlib/tree/main/examples/benchmarks_dynamic/incremental).
 
 > If you want to use any other dataset or pytorch model, 
