@@ -8,7 +8,9 @@ To give an example program, we use some qlib API (including qlib data and qlib m
 which you should put it under `examples/benchmarks_dynamic/incremenetal/` of the qlib repo [SJTU-Quant/qlib](https://github.com/SJTU-Quant/qlib/tree/main/examples/benchmarks_dynamic/incremental).
 
 > If you want to use any other dataset or pytorch model, 
-> reimplement three functions, `_load_data`, `_init_model`, and `_evaluate_metrics` in `main.IncrementalExp`. 
+> reimplement three functions, `_load_data`, `_init_model`, and `_evaluate_metrics` in `main.IncrementalExp`.
+>
+> The current `_evaluate_metrics` calculates IC based on normalized labels rather than the raw labels, which the followers should revise.
 
 For stable experiments, please refer to our primary repo [SJTU-Quant/qlib](https://github.com/SJTU-Quant/qlib/tree/main/examples/benchmarks_dynamic/incremental) 
 
