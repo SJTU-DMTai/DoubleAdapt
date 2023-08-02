@@ -25,6 +25,8 @@ Argument `--data_dir crowd_data` and `--data_dir cn_data` for crowd-source data 
 Argument `--alpha 360` or `--alpha 158` for Alpha360 and Alpha 158, respectively. 
 > We have not carefully checked the program on Alpha158, possibly leaving bugs unresolved. 
 > It is better to experiment on Alpha 360.
+>
+> **An Alph158 version will be released in the future**. Some shortcomings are discussed [later](#remarks).
  
 Note that we are to predict the stock trend **BUT NOT** the rank of stock trend, which is different from DDG-DA.
 
@@ -59,7 +61,7 @@ If your GPU is limited, try to set a smaller `step` (e.g., 5) which may takes up
 > The reason why we set `step` to 20 rather than 5 is that 
 RR and DDG-DA bear unaffordable time cost (e.g., 3 days for 10 runs) in experiments with `step` set to 5.   
 
-## Remarks
+## Remarks <a id="remarks"></a>
 ### Carefully select `step` according to `horizon`
 Argument `--horizon` decides the target label to be `Ref($close, -horizon-1}) / Ref($close, -1) - 1` in the China A-share market. 
 Accordingly, there are always unknown ground-truth labels in the lasted `horizon` days of test data, and we can only use the rest for optimization of the meta-learners.
@@ -70,6 +72,7 @@ We provide an argument `--use_extra True` to take the nearest data as additional
 It is recommended to let `step` be greater than `horizon` by at least 3 or 4, e.g., `--step 5 --horizon 1`.
 
 > The current implementation does not support `step` to equal `horizon` (e.g., `--step 1 --horizon 1`).
+> 
 > TODO: use $\phi^{k-2}$ and $\psi^{k-2}$ for the $k$-th online task
 
 ### Re-devise the data adapter for high-dimensional features
