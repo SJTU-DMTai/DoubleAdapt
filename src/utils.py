@@ -163,27 +163,29 @@ def organize_all_tasks(segments: Dict[Text, Tuple], ta: TimeAdjuster,
                        step: int, trunc_days: int = 2,
                        rtype: str = TimeAdjuster.SHIFT_SD,
                        use_extra: bool = False) -> Dict[Text, List[Dict[Text, Tuple]]]:
-    """
-    Organize training data, validation data, and test data into rolling tasks.
+    """Organize training data, validation data, and test data into rolling tasks.
 
     Parameters
     ----------
-    segments (Dict[Text, Tuple]):
+    segments : Dict[Text, Tuple])
         The date range of training data, validation data, and test data.
-        Example:
-            {
-                'train': ('2008-01-01', '2014-12-31'),
-                'valid': ('2015-01-01', '2016-12-31'),
-                'test': ('2017-01-01', '2020-12-31')
-            }
-    step (int):
+        for example:
+
+            .. code-block:: python
+
+                {
+                    'train': ('2008-01-01', '2014-12-31'),
+                    'valid': ('2015-01-01', '2016-12-31'),
+                    'test': ('2017-01-01', '2020-12-31')
+                }
+    step : int
         the rolling interval
-    trunc_days (int):
+    trunc_days : int
         truncate out the last part of training data to avoid information leakage
-    rtype (str):
+    rtype : str
         if TimeAdjuster.SHIFT_SD, using sliding windows;
         if TimeAdjuster.SHIFT_EX, using all observed data for training.
-    use_extra (bool):
+    use_extra : bool
         whether to use the extra segment between the support set and the query set for meta-learning optimization.
     """
     all_rolling_tasks = organize_tasks(segments['train'][0], segments['test'][-1], ta, step, trunc_days, rtype, use_extra)
@@ -255,21 +257,21 @@ def get_rolling_data(rolling_task_segments: List[Dict[Text, Tuple]],
 
     Parameters
     ----------
-    rolling_task_segments (List[Dict[Text, Tuple[datetime.datetime]]]):
+    rolling_task_segments : List[Dict[Text, Tuple[datetime.datetime]]]:
         a sequence of task segments
-    data (pd.DataFrame):
+    data : pd.DataFrame
         the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
         the col named 'feature' contains the stock feature vectors;
         the col named 'label' contains the ground-truth labels.
-    factor_num (int):
+    factor_num : int
         # of stock factors (default 6 for Alpha360).
-    horizon (int):
+    horizon : int
         define the stock price trend
-    not_sequence (bool):
+    not_sequence : bool
         whether the stock feature vector is a time series.
-    sequence_last_dim (bool):
+    sequence_last_dim : bool
         whether the time series is aligned along the last axis of dimensions.
-    to_tensor (bool):
+    to_tensor : bool
         if True, transform all `numpy.ndarray` to `torch.Tensor` at once;
         if False, transform each batch from `numpy.ndarray` to `torch.Tensor` (slow, not recommended)
     """

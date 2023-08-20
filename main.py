@@ -116,7 +116,9 @@ class Benchmark:
 class IncrementalExp:
     """
     Example:
-    python -u main.py run_all --forecast_model GRU -num_head 8 --tau 10 --first_order True --adapt_x True --adapt_y True --market csi300 --data_dir crowd_data --rank_label False
+        .. code-block:: python
+
+            python -u main.py run_all --forecast_model GRU -num_head 8 --tau 10 --first_order True --adapt_x True --adapt_y True --market csi300 --data_dir crowd_data --rank_label False
     """
 
     def __init__(
@@ -146,51 +148,49 @@ class IncrementalExp:
             test_end=None,
     ):
         """
-
-        Parameters
-        ----------
-        data_dir (str):
-            source data dictionary under root_path
-        root_path (str):
-            the root path of source data. '~/.qlib/qlib_data/' by default.
-        root_path (str):
-            the path of calendar. If None, use '~/.qlib/qlib_data/cn_data/calendar/days.txt'.
-        market (str):
-            'csi300' or 'csi500'
-        horizon (int):
-            define the stock price trend
-        alpha (int):
-            360 or 158
-        x_dim (int):
-            the dimension of stock features (e.g., factor_num * time_series_length)
-        step (int):
-            incremental task interval, i.e., timespan of incremental data or test data
-        model_name (str):
-            consistent with directory name under examples/benchmarks
-        lr (float):
-            learning rate of data adapter
-        lr_model (float):
-            learning rate of forecast model and model adapter
-        reg (float):
-            regularization strength
-        num_head (int):
-            number of transformation heads
-        tau (float):
-            softmax temperature
-        naive (bool):
-            if True, degrade to naive incremental baseline; if False, use DoubleAdapt
-        preprocess_tensor (bool):
-            if False, temporally transform each batch from `numpy.ndarray` to `torch.Tensor` (slow, not recommended)
-        use_extra (bool):
-            if True, use extra segments for upper-level optimization (not recommended when step is large enough)
-        tag (str):
-            to distinguish experiment id
-        h_path (str):
-            prefetched handler file path to load
-        test_start (str):
-            override the start date of test data
-        test_end (str):
-            override the end date of test data
+        Args:
+            data_dir (str):
+                source data dictionary under root_path
+            root_path (str):
+                the root path of source data. '~/.qlib/qlib_data/' by default.
+            root_path (str):
+                the path of calendar. If None, use '~/.qlib/qlib_data/cn_data/calendar/days.txt'.
+            market (str):
+                'csi300' or 'csi500'
+            horizon (int):
+                define the stock price trend
+            alpha (int):
+                360 or 158
+            x_dim (int):
+                the dimension of stock features (e.g., factor_num * time_series_length)
+            step (int):
+                incremental task interval, i.e., timespan of incremental data or test data
+            model_name (str):
+                consistent with directory name under examples/benchmarks
+            lr (float):
+                learning rate of data adapter
+            lr_model (float):
+                learning rate of forecast model and model adapter
+            reg (float):
+                regularization strength
+            num_head (int):
+                number of transformation heads
+            tau (float):
+                softmax temperature
+            naive (bool):
+                if True, degrade to naive incremental baseline; if False, use DoubleAdapt
+            preprocess_tensor (bool):
+                if False, temporally transform each batch from `numpy.ndarray` to `torch.Tensor` (slow, not recommended)
+            use_extra (bool):
+                if True, use extra segments for upper-level optimization (not recommended when step is large enough)
+            tag (str):
+                to distinguish experiment id
+            h_path (str):
+                prefetched handler file path to load
+            test_start (str):
+                override the start date of test data
+            test_end (str):
+                override the end date of test data
         """
         self.data_dir = data_dir
         self.provider_uri = os.path.join(root_path, data_dir)
@@ -268,12 +268,11 @@ class IncrementalExp:
     def _load_data(self):
         # FIXME: load your own data!
         """
-        Returns
-        -------
-        pd.DataFrame:
-            the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
-            the col named 'feature' contains the stock feature vectors;
-            the col named 'label' contains the ground-truth labels.
+        Returns:
+            pd.DataFrame:
+                the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
+                the col named 'feature' contains the stock feature vectors;
+                the col named 'label' contains the ground-truth labels.
         """
         from qlib.utils import init_instance_by_config
         import qlib
@@ -326,30 +325,27 @@ class IncrementalExp:
         """
         Perform incremental learning on the test data.
 
-        Parameters
-        ----------
-        segments (Dict[str, tuple]):
-            The date range of training data, validation data, and test data.
-            Example:
-                {
-                    'train': ('2008-01-01', '2014-12-31'),
-                    'valid': ('2015-01-01', '2016-12-31'),
-                    'test': ('2017-01-01', '2020-08-01')
-                }
-        data (pd.DataFrame):
-            the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
-            the col named 'feature' contains the stock feature vectors;
-            the col named 'label' contains the ground-truth labels.
-        reload_path (str):
-            if not None, reload checkpoints
+        Args:
+            segments (Dict[str, tuple]):
+                The date range of training data, validation data, and test data.
+                Example::
+                    {
+                        'train': ('2008-01-01', '2014-12-31'),
+                        'valid': ('2015-01-01', '2016-12-31'),
+                        'test': ('2017-01-01', '2020-08-01')
+                    }
+            data (pd.DataFrame):
+                the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
+                the col named 'feature' contains the stock feature vectors;
+                the col named 'label' contains the ground-truth labels.
+            reload_path (str):
+                if not None, reload checkpoints
 
-        Returns
-        -------
-        pd.DataFrame:
-            the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
-            the col named 'pred' contains the predictions of the model;
-            the col named 'label' contains the ground-truth labels which have been preprocessed and may not be the raw.
-
+        Returns:
+            pd.DataFrame:
+                the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
+                the col named 'pred' contains the predictions of the model;
+                the col named 'label' contains the ground-truth labels which have been preprocessed and may not be the raw.
         """
         if framework is None:
             model = self._init_model()

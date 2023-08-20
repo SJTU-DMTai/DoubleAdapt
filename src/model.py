@@ -12,13 +12,23 @@ import torch
 from torch import optim, nn
 import torch.nn.functional as F
 import higher
-from . import higher_optim  # IMPORTANT, DO NOT DELETE
+import higher_optim  # IMPORTANT, DO NOT DELETE
 
-from .utils import override_state
-from .net import DoubleAdapt, ForecastModel
+from utils import override_state
+from net import DoubleAdapt, ForecastModel
 
 
 class IncrementalManager:
+    """
+    Naive incremental learning framework
+
+    Args:
+        model (torch.nn.Module): the stock trend forecasting model
+        lr_model (float): the learning rate of the model
+        x_dim (int): the total number of stock indicators.
+        need_permute (bool): whether to permute the last two dimensions of time-series input, specially for Alpha360.
+        begin_valid_epoch (int): which epoch to begin validation. Set a moderate one to reduce training time.
+    """
     def __init__(
         self,
         model: nn.Module,
@@ -45,7 +55,7 @@ class IncrementalManager:
 
         Returns:
             dict:
-                a dictionary containing a whole state of the module
+                a dictionary containing a whole state of the module and the state of the optimizer.
         """
         if destination is None:
             destination = OrderedDict()
@@ -56,6 +66,13 @@ class IncrementalManager:
         return destination
 
     def load_state_dict(self, state_dict: typing.OrderedDict[str, torch.Tensor],):
+        r"""Copies parameters and buffers from :attr:`state_dict` into
+        this module and the optimizer.
+
+        Args:
+            dict:
+                a dict containing parameters and persistent buffers.
+        """
         self.framework.load_state_dict(state_dict['framework'])
         self.framework.opt.load_state_dict(state_dict['framework_opt'])
         self.opt.load_state_dict(state_dict['opt'])
@@ -64,7 +81,15 @@ class IncrementalManager:
             meta_tasks_train: List[Dict[str, Union[pd.Index, torch.Tensor, np.ndarray]]],
             meta_tasks_val: List[Dict[str, Union[pd.Index, torch.Tensor, np.ndarray]]],
             checkpoint_path=""):
+        """Make the trainable parameters of the incremental learning framework fit on the training set.
 
+        Args:
+            meta_tasks_train (list): a sequence of incremental learning tasks for
+                training the forecasting models (in Naive Incremenal Learning)
+                or training the meta-learners (in DoubleAdapt)
+            meta_tasks_val (list): a sequence of incremental learning tasks for validation
+            checkpoint_path (str): the path of checkpoints
+        """
         self.cnt = 0
         self.framework.train()
         torch.set_grad_enabled(True)
@@ -77,7 +102,7 @@ class IncrementalManager:
                 if phase == "test":
                     if epoch < self.begin_valid_epoch:
                         continue
-                pred_y, ic = self.run_epoch(phase, task_list)
+                pred_y, ic = self._run_epoch(phase, task_list)
                 if phase == "val":
                     if ic < best_ic:
                         patience -= 1
@@ -89,14 +114,14 @@ class IncrementalManager:
             if patience <= 0:
                 break
         self.framework.load_state_dict(best_checkpoint)
-        self.run_epoch('train', meta_tasks_val)
+        self._run_epoch('train', meta_tasks_val)
         self.fitted = True
         if checkpoint_path:
             print('Save checkpoint in Exp:', checkpoint_path)
             torch.save(self.state_dict(), checkpoint_path)
 
-    def run_epoch(self, phase: str, task_list: List[Dict[str, Union[pd.Index, torch.Tensor, np.ndarray]]],
-                  tqdm_show: bool=False):
+    def _run_epoch(self, phase: str, task_list: List[Dict[str, Union[pd.Index, torch.Tensor, np.ndarray]]],
+                   tqdm_show: bool=False):
         pred_y_all, mse_all = [], 0
         indices = np.arange(len(task_list))
         if phase == "val":
@@ -114,7 +139,7 @@ class IncrementalManager:
                     k: torch.tensor(v, device=self.framework.device, dtype=torch.float32) if 'idx' not in k else v
                     for k, v in meta_input.items()
                 }
-            pred = self.run_task(meta_input, phase)
+            pred = self._run_task(meta_input, phase)
             if phase != "train":
                 test_idx = meta_input["test_idx"]
                 pred_y_all.append(
@@ -137,8 +162,8 @@ class IncrementalManager:
             return pred_y_all, ic
         return pred_y_all, None
 
-    def run_task(self, meta_input: Dict[str, Union[pd.Index, torch.Tensor]], phase: str):
-        """ Naive incremental learning """
+    def _run_task(self, meta_input: Dict[str, Union[pd.Index, torch.Tensor]], phase: str):
+        """ A single naive incremental learning task """
         self.framework.opt.zero_grad()
         y_hat = self.framework(meta_input["X_train"].to(self.framework.device), None, transform=False)
         loss = self.framework.criterion(y_hat, meta_input["y_train"].to(self.framework.device))
@@ -152,29 +177,47 @@ class IncrementalManager:
     def inference(self, meta_tasks_test: List[Dict[str, Union[pd.DataFrame, np.ndarray, torch.Tensor]]],
                   date_slice: slice = slice(None, None)):
         """
-        Perform incremental learning on the test data.
+        Perform incremental learning on the test set.
 
-        Parameters
-        ----------
-        meta_tasks_test (List[Dict[str, Union[pd.DataFrame, np.ndarray, torch.Tensor]]])
-        test_start (Optional[pd.Timestamp]), test_end (Optional[pd.Timestamp]):
-            Only return predictions and labels during this range
+        Args:
+            meta_tasks_test (List[Dict[str, Union[pd.DataFrame, np.ndarray, torch.Tensor]]])
+            test_start (Optional[pd.Timestamp]), test_end (Optional[pd.Timestamp]):
+                Only return predictions and labels during this range
 
-        Returns
-        -------
-        pd.DataFrame:
-            the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
-            the col named 'pred' contains the predictions of the model;
-            the col named 'label' contains the ground-truth labels which have been preprocessed and may not be the raw.
-
+        Returns:
+            pd.DataFrame:
+                the index col is pd.MultiIndex with the datetime as level 0 and the stock ID as level 1;
+                the col named 'pred' contains the predictions of the model;
+                the col named 'label' contains the ground-truth labels which have been preprocessed and may not be the raw.
         """
         self.framework.train()
-        pred_y_all, ic = self.run_epoch("online", meta_tasks_test, tqdm_show=True)
+        pred_y_all, ic = self._run_epoch("online", meta_tasks_test, tqdm_show=True)
         pred_y_all = pred_y_all.loc[date_slice]
         return pred_y_all
 
 
 class DoubleAdaptManager(IncrementalManager):
+    r"""
+    A meta-learning based incremental learning framework
+
+    Args:
+        model (torch.nn.Module): the stock trend forecasting model
+        lr_model (float): the learning rate of the model
+        lr_da (float): the learning rate of the data adapter
+        lr_ma (float): the learning rate of the model adapter
+        reg (float): regularization strength
+        adapt_x (bool): whether to perform feature adaptation
+        adapt_y (bool): whether to perform label adaptation
+        first_order (bool): whether to adopt first-order approximation of MAML
+        is_rnn (bool): if the forecast model is an RNN and :attr:`first_order` is False, we will disable CUDNN.
+        factor_num (int): the number of indicators at each time step of time-series inputs.
+                    Otherwise, the same as :attr:`factor_num`
+        x_dim (int): the total number of stock indicators
+        need_permute (bool): whether to permute the last two dimensions of time-series input, specially for Alpha360.
+        num_head (int): number of adaptation heads
+        temperature (float): softmax temperature
+        begin_valid_epoch (int): which epoch to begin validation. Set a moderate one to reduce training time.
+    """
     def __init__(
         self,
         model: nn.Module,
@@ -221,7 +264,7 @@ class DoubleAdaptManager(IncrementalManager):
         # return optim.Adam([{'params': self.tn.teacher_y.parameters(), 'lr': self.lr_y},
         #                    {'params': self.tn.teacher_x.parameters()}], lr=self.lr)
 
-    def run_task(self, meta_input: Dict[str, Union[pd.Index, torch.Tensor]], phase: str):
+    def _run_task(self, meta_input: Dict[str, Union[pd.Index, torch.Tensor]], phase: str):
 
         self.framework.opt.zero_grad()
         self.opt.zero_grad()
