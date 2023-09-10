@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import higher
 import higher_optim  # IMPORTANT, DO NOT DELETE
 
-from utils import override_state
+from utils import override_state, has_rnn
 from net import DoubleAdapt, ForecastModel
 
 
@@ -125,9 +125,7 @@ class IncrementalManager:
         pred_y_all, mse_all = [], 0
         indices = np.arange(len(task_list))
         if phase == "val":
-            checkpoint = copy.deepcopy(self.framework.state_dict())
-            checkpoint_opt = copy.deepcopy(self.framework.opt.state_dict())
-            checkpoint_opt_meta = copy.deepcopy(self.opt.state_dict())
+            checkpoint = copy.deepcopy(self.state_dict())
         elif phase == "train":
             np.random.shuffle(indices)
         self.phase = phase
@@ -151,9 +149,7 @@ class IncrementalManager:
                     )
                 )
         if phase == "val":
-            self.framework.load_state_dict(checkpoint)
-            self.framework.opt.load_state_dict(checkpoint_opt)
-            self.opt.load_state_dict(checkpoint_opt_meta)
+            self.load_state_dict(checkpoint)
         if phase != "train":
             pred_y_all = pd.concat(pred_y_all)
         if phase == "val":
@@ -209,7 +205,6 @@ class DoubleAdaptManager(IncrementalManager):
         adapt_x (bool): whether to perform feature adaptation
         adapt_y (bool): whether to perform label adaptation
         first_order (bool): whether to adopt first-order approximation of MAML
-        is_rnn (bool): if the forecast model is an RNN and :attr:`first_order` is False, we will disable CUDNN.
         factor_num (int): the number of indicators at each time step of time-series inputs.
                     Otherwise, the same as :attr:`factor_num`
         x_dim (int): the total number of stock indicators
@@ -228,7 +223,6 @@ class DoubleAdaptManager(IncrementalManager):
         adapt_x: bool = True,
         adapt_y: bool = True,
         first_order: bool = True,
-        is_rnn: bool = False,
         factor_num: int = 6,
         x_dim: int = 360,
         need_permute: bool = True,
@@ -236,9 +230,11 @@ class DoubleAdaptManager(IncrementalManager):
         temperature: float = 10,
         begin_valid_epoch: int = 0,
     ):
-        super(DoubleAdaptManager, self).__init__(model, x_dim=x_dim, lr_model=lr_model,
-                                                 is_rnn=is_rnn, need_permute=need_permute,
+        super(DoubleAdaptManager, self).__init__(model, x_dim=x_dim, lr_model=lr_model, need_permute=need_permute,
+                                                 factor_num=factor_num, temperature=temperature, num_head=num_head,
                                                  begin_valid_epoch=begin_valid_epoch)
+        # if the forecast model is an RNN and first_order is False, we will disable CUDNN.
+        self.has_rnn = has_rnn(self.framework)
         self.lr_da = lr_da
         self.lr_ma = lr_ma
         self.adapt_x = adapt_x
@@ -246,7 +242,6 @@ class DoubleAdaptManager(IncrementalManager):
         self.reg = reg
         self.sigma = 1 ** 2 * 2
         self.factor_num = factor_num
-        self.lamda = 0.5
         self.num_head = num_head
         self.temperature = temperature
         self.first_order = first_order
@@ -295,7 +290,6 @@ class DoubleAdaptManager(IncrementalManager):
             X_test = meta_input["X_test"].to(self.framework.device)
             y_test = meta_input["y_test"].to(self.framework.device)
         pred, X_test_adapted = self.framework(X_test, model=fmodel, transform=self.adapt_x)
-        mask_y = meta_input.get("mask_y")
         if self.adapt_y:
             pred = self.framework.teacher_y(X_test, pred, inverse=True)
         if phase != "train":
@@ -304,8 +298,10 @@ class DoubleAdaptManager(IncrementalManager):
             output = pred[test_begin:].detach().cpu().numpy()
             X_test = X_test[:meta_end]
             X_test_adapted = X_test_adapted[:meta_end]
+            mask_y = meta_input.get("mask_y")
             if mask_y is not None:
                 pred = pred[mask_y]
+                y_test = y_test[mask_y]
                 meta_end = sum(mask_y[:meta_end])
             pred = pred[:meta_end]
             y_test = y_test[:meta_end]
