@@ -273,7 +273,7 @@ class DoubleAdaptManager(IncrementalManager):
             track_higher_grads=not self.first_order,
             override={'lr': [self.lr_model]}
         ) as (fmodel, diffopt):
-            with torch.backends.cudnn.flags(enabled=self.first_order or not self.is_rnn):
+            with torch.backends.cudnn.flags(enabled=self.first_order or not self.has_rnn):
                 y_hat, _ = self.framework(X, model=fmodel, transform=self.adapt_x)
         y = meta_input["y_train"].to(self.framework.device)
         if self.adapt_y:
@@ -292,6 +292,7 @@ class DoubleAdaptManager(IncrementalManager):
         pred, X_test_adapted = self.framework(X_test, model=fmodel, transform=self.adapt_x)
         if self.adapt_y:
             pred = self.framework.teacher_y(X_test, pred, inverse=True)
+        mask_y = None
         if phase != "train":
             test_begin = len(meta_input["y_extra"]) if "y_extra" in meta_input else 0
             meta_end = test_begin + meta_input["meta_end"]
@@ -302,9 +303,8 @@ class DoubleAdaptManager(IncrementalManager):
             if mask_y is not None:
                 pred = pred[mask_y]
                 y_test = y_test[mask_y]
-                meta_end = sum(mask_y[:meta_end])
-            pred = pred[:meta_end]
-            y_test = y_test[:meta_end]
+            pred = pred[:sum(mask_y[:meta_end])]
+            y_test = y_test[:sum(mask_y[:meta_end])]
         else:
             output = pred.detach().cpu().numpy()
 
@@ -319,6 +319,8 @@ class DoubleAdaptManager(IncrementalManager):
                 with torch.no_grad():
                     pred2, _ = self.framework(X_test_adapted, model=None, transform=False, )
                     pred2 = self.framework.teacher_y(X_test, pred2, inverse=True).detach()
+                    if mask_y is not None:
+                        pred2 = pred2[mask_y[:meta_end]]
                     loss_old = self.framework.criterion(pred2.view_as(y_test), y_test)
                 loss_y = (loss_old.item() - loss.item()) / self.sigma * loss_y + loss_y * self.reg
             else:
