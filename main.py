@@ -153,7 +153,7 @@ class IncrementalExp:
                 source data dictionary under root_path
             root_path (str):
                 the root path of source data. '~/.qlib/qlib_data/' by default.
-            root_path (str):
+            calendar_path (str):
                 the path of calendar. If None, use '~/.qlib/qlib_data/cn_data/calendar/days.txt'.
             market (str):
                 'csi300' or 'csi500'
