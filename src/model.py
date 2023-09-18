@@ -25,27 +25,34 @@ class IncrementalManager:
     Args:
         model (torch.nn.Module): the stock trend forecasting model
         lr_model (float): the learning rate of the model
+        online_lr (dict): the learning rates during online training
         x_dim (int): the total number of stock indicators.
         need_permute (bool): whether to permute the last two dimensions of time-series input, specially for Alpha360.
+        over_patience (int): the patience for early stop.
         begin_valid_epoch (int): which epoch to begin validation. Set a moderate one to reduce training time.
     """
     def __init__(
         self,
         model: nn.Module,
         lr_model: float = 0.001,
+        online_lr: dict = None,
         x_dim: int = None,
         need_permute: bool = True,
+        over_patience: int = 8,
         begin_valid_epoch: int = 0,
         **kwargs
     ):
         self.fitted = False
         self.lr_model = lr_model
+        self.online_lr = online_lr
+        self.over_patience = over_patience
         self.begin_valid_epoch = begin_valid_epoch
         self.framework = self._init_framework(model, x_dim, lr_model, need_permute=need_permute, **kwargs)
         self.opt = self._init_meta_optimizer(**kwargs)
 
-    def _init_framework(self, model: nn.Module, x_dim: int = None, lr_model=0.001, need_permute=False, **kwargs):
-        return ForecastModel(model, x_dim=x_dim, lr=lr_model, need_permute=need_permute)
+    def _init_framework(self, model: nn.Module, x_dim: int = None, lr_model=0.001,
+                        weight_decay=0.0, need_permute=False, **kwargs):
+        return ForecastModel(model, x_dim=x_dim, lr=lr_model, need_permute=need_permute, weight_decay=weight_decay)
 
     def _init_meta_optimizer(self, **kwargs):
         return self.framework.opt
@@ -77,6 +84,12 @@ class IncrementalManager:
         self.framework.opt.load_state_dict(state_dict['framework_opt'])
         self.opt.load_state_dict(state_dict['opt'])
 
+    def override_online_lr_(self):
+        if self.online_lr is not None:
+            if 'lr_model' in self.online_lr:
+                self.lr_model = self.online_lr['lr_model']
+                self.opt.param_groups[0]['lr'] = self.online_lr['lr_model']
+
     def fit(self,
             meta_tasks_train: List[Dict[str, Union[pd.Index, torch.Tensor, np.ndarray]]],
             meta_tasks_val: List[Dict[str, Union[pd.Index, torch.Tensor, np.ndarray]]],
@@ -94,8 +107,7 @@ class IncrementalManager:
         self.framework.train()
         torch.set_grad_enabled(True)
 
-        best_ic, over_patience = -1e3, 8
-        patience = over_patience
+        best_ic, patience = -1e3, self.over_patience
         best_checkpoint = copy.deepcopy(self.framework.state_dict())
         for epoch in tqdm(range(300), desc="epoch"):
             for phase, task_list in zip(['train', 'val'], [meta_tasks_train, meta_tasks_val]):
@@ -109,7 +121,7 @@ class IncrementalManager:
                     else:
                         best_ic = ic
                         print("best ic:", best_ic)
-                        patience = over_patience
+                        patience = self.over_patience
                         best_checkpoint = copy.deepcopy(self.framework.state_dict())
             if patience <= 0:
                 break
@@ -124,10 +136,14 @@ class IncrementalManager:
                    tqdm_show: bool=False):
         pred_y_all, mse_all = [], 0
         indices = np.arange(len(task_list))
-        if phase == "val":
-            checkpoint = copy.deepcopy(self.state_dict())
-        elif phase == "train":
+        if phase == 'train':
             np.random.shuffle(indices)
+        else:
+            if phase == "val":
+                checkpoint = copy.deepcopy(self.state_dict())
+            lr_model = self.lr_model
+            self.override_online_lr_()
+
         self.phase = phase
         for i in tqdm(indices, desc=phase) if tqdm_show else indices:
             # torch.cuda.empty_cache()
@@ -148,11 +164,11 @@ class IncrementalManager:
                         }
                     )
                 )
-        if phase == "val":
-            self.load_state_dict(checkpoint)
         if phase != "train":
             pred_y_all = pd.concat(pred_y_all)
         if phase == "val":
+            self.lr_model = lr_model
+            self.load_state_dict(checkpoint)
             ic = pred_y_all.groupby("datetime").apply(lambda df: df["pred"].corr(df["label"], method="pearson")).mean()
             print(ic)
             return pred_y_all, ic
@@ -219,6 +235,10 @@ class DoubleAdaptManager(IncrementalManager):
         lr_model: float = 0.001,
         lr_da: float = 0.01,
         lr_ma: float = 0.001,
+        lr_x: float = None,
+        lr_y: float = None,
+        online_lr: dict = None,
+        weight_decay: float = 0,
         reg: float = 0.5,
         adapt_x: bool = True,
         adapt_y: bool = True,
@@ -230,13 +250,11 @@ class DoubleAdaptManager(IncrementalManager):
         temperature: float = 10,
         begin_valid_epoch: int = 0,
     ):
-        super(DoubleAdaptManager, self).__init__(model, x_dim=x_dim, lr_model=lr_model, need_permute=need_permute,
+        super(DoubleAdaptManager, self).__init__(model, x_dim=x_dim, lr_model=lr_model, lr_ma=lr_ma, lr_da=lr_da,
+                                                 lr_x=lr_x, lr_y=lr_y, online_lr=online_lr, weight_decay=weight_decay,
+                                                 need_permute=need_permute,
                                                  factor_num=factor_num, temperature=temperature, num_head=num_head,
                                                  begin_valid_epoch=begin_valid_epoch)
-        # if the forecast model is an RNN and first_order is False, we will disable CUDNN.
-        self.has_rnn = has_rnn(self.framework)
-        self.lr_da = lr_da
-        self.lr_ma = lr_ma
         self.adapt_x = adapt_x
         self.adapt_y = adapt_y
         self.reg = reg
@@ -244,20 +262,39 @@ class DoubleAdaptManager(IncrementalManager):
         self.factor_num = factor_num
         self.num_head = num_head
         self.temperature = temperature
-        self.first_order = first_order
         self.begin_valid_epoch = begin_valid_epoch
+        self.first_order = first_order
+        # if the forecast model is an RNN and first_order is False, we will disable CUDNN.
+        self.has_rnn = has_rnn(self.framework)
 
     def _init_framework(self, model: nn.Module, x_dim=None, lr_model=0.001, need_permute=False,
-                        num_head=8, temperature=10, factor_num=6, **kwargs):
+                        num_head=8, temperature=10, factor_num=6, lr_ma=None, weight_decay=0, **kwargs):
         return DoubleAdapt(
-            model, x_dim=x_dim, lr=lr_model, need_permute=need_permute,
-            factor_num=factor_num, num_head=num_head, temperature=temperature,
+            model, x_dim=x_dim, lr=lr_model if lr_ma is None else lr_ma, need_permute=need_permute,
+            factor_num=factor_num, num_head=num_head, temperature=temperature, weight_decay=weight_decay
         )
 
-    def _init_meta_optimizer(self, lr_da=0.01, **kwargs):
-        return optim.Adam(self.framework.meta_params, lr=lr_da)    # To optimize the data adapter
-        # return optim.Adam([{'params': self.tn.teacher_y.parameters(), 'lr': self.lr_y},
-        #                    {'params': self.tn.teacher_x.parameters()}], lr=self.lr)
+    def _init_meta_optimizer(self, lr_da=0.01, lr_x=None, lr_y=None, **kwargs):
+        """ NOTE: the optimizer of the model adapter is self.framework.opt """
+        if lr_x is None or lr_y is None:
+            return optim.Adam(self.framework.meta_params, lr=lr_da)
+        else:
+            return optim.Adam([{'params': self.framework.teacher_x.parameters(), 'lr': lr_x},
+                               {'params': self.framework.teacher_y.parameters(), 'lr': lr_y},])
+
+    def override_online_lr_(self):
+        if self.online_lr is not None:
+            if 'lr_model' in self.online_lr:
+                self.lr_model = self.online_lr['lr_model']
+            if 'lr_ma' in self.online_lr:
+                self.framework.opt.param_groups[0]['lr'] = self.online_lr['lr_ma']
+            if 'lr_da' in self.online_lr:
+                self.opt.param_groups[0]['lr'] = self.online_lr['lr_da']
+            else:
+                if 'lr_x' in self.online_lr:
+                    self.opt.param_groups[0]['lr'] = self.online_lr['lr_x']
+                if 'lr_y' in self.online_lr:
+                    self.opt.param_groups[1]['lr'] = self.online_lr['lr_y']
 
     def _run_task(self, meta_input: Dict[str, Union[pd.Index, torch.Tensor]], phase: str):
 
@@ -299,12 +336,12 @@ class DoubleAdaptManager(IncrementalManager):
             output = pred[test_begin:].detach().cpu().numpy()
             X_test = X_test[:meta_end]
             X_test_adapted = X_test_adapted[:meta_end]
+            pred = pred[:meta_end]
+            y_test = y_test[:meta_end]
             mask_y = meta_input.get("mask_y")
             if mask_y is not None:
-                pred = pred[mask_y]
-                y_test = y_test[mask_y]
-            pred = pred[:sum(mask_y[:meta_end])]
-            y_test = y_test[:sum(mask_y[:meta_end])]
+                pred = pred[mask_y[:meta_end]]
+                y_test = y_test[mask_y[:meta_end]]
         else:
             output = pred.detach().cpu().numpy()
 

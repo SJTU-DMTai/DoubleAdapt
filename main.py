@@ -118,7 +118,9 @@ class IncrementalExp:
     Example:
         .. code-block:: python
 
-            python -u main.py run_all --forecast_model GRU -num_head 8 --tau 10 --first_order True --adapt_x True --adapt_y True --market csi300 --data_dir crowd_data --rank_label False
+            python -u main.py run_all --forecast_model GRU --market csi300 --data_dir crowd_data --rank_label False \
+            --first_order True --adapt_x True --adapt_y True --num_head 8 --tau 10 \
+            --lr 0.001 --lr_da 0.01 --online_lr "{'lr': 0.001, 'lr_da': 0.001, 'lr_ma': 0.001}"
     """
 
     def __init__(
@@ -132,17 +134,24 @@ class IncrementalExp:
             x_dim=None,
             step=20,
             model_name="GRU",
-            lr=0.01,
-            lr_model=0.001,
+            lr=0.001,
+            lr_ma=None,
+            lr_da=0.01,
+            lr_x=None,
+            lr_y=None,
+            online_lr: dict = None,
             reg=0.5,
+            weight_decay=0,
             num_head=8,
             tau=10,
+            first_order=True,
+            adapt_x=True,
+            adapt_y=True,
             naive=False,
             preprocess_tensor=True,
             use_extra=False,
             tag=None,
             rank_label=False,
-            first_order=True,
             h_path=None,
             test_start=None,
             test_end=None,
@@ -168,15 +177,31 @@ class IncrementalExp:
             model_name (str):
                 consistent with directory name under examples/benchmarks
             lr (float):
+                learning rate of forecast model
+            lr_ma (float):
+                learning rate of model adapter. If None, use lr.
+            lr_da (float):
                 learning rate of data adapter
-            lr_model (float):
-                learning rate of forecast model and model adapter
+            lr_x (float):
+                if both lr_x and lr_y are not None, specify the learning rate of the feature adaptation layer.
+            lr_y (float):
+                if both lr_x and lr_y are not None, specify the learning rate of the label adaptation layer.
+            online_lr (dict):
+                learning rates during meta-valid and meta-test. Example: --online lr "{'lr_da': 0, 'lr': 0.0001}".
             reg (float):
                 regularization strength
+            weight_decay (float):
+                L2 regularization of the (Adam) optimizer
             num_head (int):
                 number of transformation heads
             tau (float):
                 softmax temperature
+            first_order (bool):
+                whether use first-order approximation version of MAML
+            adapt_x (bool):
+                whether adapt features
+            adapt_y (bool):
+                whether adapt labels
             naive (bool):
                 if True, degrade to naive incremental baseline; if False, use DoubleAdapt
             preprocess_tensor (bool):
@@ -214,12 +239,21 @@ class IncrementalExp:
             self.tag = time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime())
         self.rank_label = rank_label
         self.lr = lr
-        self.lr_model = lr_model
+        self.lr_da = lr_da
+        self.lr_ma = lr if lr_ma is None else lr_ma
+        self.lr_x = lr_x
+        self.lr_y = lr_y
+        if online_lr is not None and 'lr' in online_lr:
+            online_lr['lr_model'] = online_lr['lr']
+        self.online_lr = online_lr
         self.num_head = num_head
         self.temperature = tau
         self.first_order = first_order
         self.naive = naive
+        self.adapt_x = adapt_x
+        self.adapt_y = adapt_y
         self.reg = reg
+        self.weight_decay = weight_decay
         self.not_sequence = self.model_name in ["MLP", 'Linear'] and self.alpha == 158
 
         # FIXME: Override the segments!!
@@ -258,7 +292,7 @@ class IncrementalExp:
             horizon=self.horizon,
             rank_label=self.rank_label,
             alpha=self.alpha,
-            lr=self.lr_model,
+            lr=self.lr,
             early_stop=8,
             h_path=self.h_path,
             test_start=self.test_slice.start,
@@ -295,12 +329,12 @@ class IncrementalExp:
     def offline_training(self, segments: Dict[str, tuple] = None, data: pd.DataFrame = None, reload_path=None, save_path=None):
         model = self._init_model()
         if self.naive:
-            framework = IncrementalManager(model, x_dim=self.x_dim, lr_model=self.lr_model, begin_valid_epoch=0)
+            framework = IncrementalManager(model, x_dim=self.x_dim, lr_model=self.lr, begin_valid_epoch=0)
         else:
-            framework = DoubleAdaptManager(model, x_dim=self.x_dim, lr_model=self.lr_model,
+            framework = DoubleAdaptManager(model, x_dim=self.x_dim, lr_model=self.lr,
                                            first_order=True, begin_valid_epoch=0, factor_num=self.factor_num,
-                                           lr_da=self.lr, lr_ma=self.lr_model,
-                                           adapt_x=True, adapt_y=True, reg=self.reg,
+                                           lr_da=self.lr_da, lr_ma=self.lr,
+                                           adapt_x=self.adapt_x, adapt_y=self.adapt_y, reg=self.reg,
                                            num_head=self.num_head, temperature=self.temperature)
         if reload_path is not None:
             framework.load_state_dict(torch.load(reload_path))
@@ -350,13 +384,15 @@ class IncrementalExp:
         if framework is None:
             model = self._init_model()
             if self.naive:
-                framework = IncrementalManager(model, x_dim=self.x_dim, lr_model=self.lr_model,
+                framework = IncrementalManager(model, x_dim=self.x_dim, lr_model=self.lr,
+                                               online_lr=self.online_lr, weight_decay=self.weight_decay,
                                                first_order=True, alpha=self.alpha, begin_valid_epoch=0)
             else:
-                framework = DoubleAdaptManager(model, x_dim=self.x_dim, lr_model=self.lr_model,
-                                               first_order=True, begin_valid_epoch=0, factor_num=self.factor_num,
-                                               lr_da=self.lr, lr_ma=self.lr_model,
-                                               adapt_x=True, adapt_y=True, reg=self.reg,
+                framework = DoubleAdaptManager(model, x_dim=self.x_dim, lr_model=self.lr, weight_decay=self.weight_decay,
+                                               first_order=self.first_order, begin_valid_epoch=0, factor_num=self.factor_num,
+                                               lr_da=self.lr_da, lr_ma=self.lr_ma, online_lr=self.online_lr,
+                                               lr_x=self.lr_x, lr_y=self.lr_y,
+                                               adapt_x=self.adapt_x, adapt_y=self.adapt_y, reg=self.reg,
                                                num_head=self.num_head, temperature=self.temperature)
             if reload_path is not None:
                 framework.load_state_dict(torch.load(reload_path))
