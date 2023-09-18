@@ -321,10 +321,13 @@ class IncrementalExp:
         # FIXME: init your own model!
         from qlib.utils import init_instance_by_config
 
-        model = init_instance_by_config(self.basic_task["model"])
-        for child in model.__dict__.values():
-            if isinstance(child, nn.Module):
-                return child
+        if self.basic_task["model"]["class"] == "LinearModel":
+            return nn.Linear(self.x_dim, 1, bias=False)
+        else:
+            model = init_instance_by_config(self.basic_task["model"])
+            for child in model.__dict__.values():
+                if isinstance(child, nn.Module):
+                    return child
 
     def offline_training(self, segments: Dict[str, tuple] = None, data: pd.DataFrame = None, reload_path=None, save_path=None):
         model = self._init_model()
