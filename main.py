@@ -268,7 +268,8 @@ class IncrementalExp:
         if test_end is not None:
             self.segments['test'] = (self.segments['test'][0], test_end)
 
-        self.test_slice = slice(self.ta.align_time(test_start, tp_type='start'), self.ta.align_time(test_end, tp_type='end'))
+        self.test_slice = slice(self.ta.align_time(self.segments['test'][0], tp_type='start'),
+                                self.ta.align_time(self.segments['test'][1], tp_type='end'))
 
         self.h_path = h_path
         self.preprocess_tensor = preprocess_tensor
