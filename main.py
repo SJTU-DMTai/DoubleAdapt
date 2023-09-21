@@ -335,9 +335,10 @@ class IncrementalExp:
         if self.naive:
             framework = IncrementalManager(model, x_dim=self.x_dim, lr_model=self.lr, begin_valid_epoch=0)
         else:
-            framework = DoubleAdaptManager(model, x_dim=self.x_dim, lr_model=self.lr,
-                                           first_order=True, begin_valid_epoch=0, factor_num=self.factor_num,
-                                           lr_da=self.lr_da, lr_ma=self.lr,
+            framework = DoubleAdaptManager(model, x_dim=self.x_dim, lr_model=self.lr, weight_decay=self.weight_decay,
+                                           first_order=self.first_order, begin_valid_epoch=0, factor_num=self.factor_num,
+                                           lr_da=self.lr_da, lr_ma=self.lr_ma, online_lr=self.online_lr,
+                                           lr_x=self.lr_x, lr_y=self.lr_y,
                                            adapt_x=self.adapt_x, adapt_y=self.adapt_y, reg=self.reg,
                                            num_head=self.num_head, temperature=self.temperature)
         if reload_path is not None:
@@ -386,6 +387,8 @@ class IncrementalExp:
                 the col named 'label' contains the ground-truth labels which have been preprocessed and may not be the raw.
         """
         if framework is None:
+            assert reload_path is not None
+
             model = self._init_model()
             if self.naive:
                 framework = IncrementalManager(model, x_dim=self.x_dim, lr_model=self.lr,
@@ -398,9 +401,9 @@ class IncrementalExp:
                                                lr_x=self.lr_x, lr_y=self.lr_y,
                                                adapt_x=self.adapt_x, adapt_y=self.adapt_y, reg=self.reg,
                                                num_head=self.num_head, temperature=self.temperature)
-            if reload_path is not None:
-                framework.load_state_dict(torch.load(reload_path))
-                print('Reload experiment', reload_path)
+            # framework.framework.to(framework.framework.device)
+            framework.load_state_dict(torch.load(reload_path))
+            print('Reload experiment', reload_path)
 
         if segments is None:
             segments = self.segments
