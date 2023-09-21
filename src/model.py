@@ -203,6 +203,7 @@ class IncrementalManager:
                 the col named 'label' contains the ground-truth labels which have been preprocessed and may not be the raw.
         """
         self.framework.train()
+        self.framework.to(self.framework.device)
         pred_y_all, ic = self._run_epoch("online", meta_tasks_test, tqdm_show=True)
         pred_y_all = pred_y_all.loc[date_slice]
         return pred_y_all
