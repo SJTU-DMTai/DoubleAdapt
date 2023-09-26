@@ -270,7 +270,7 @@ def get_rolling_data(rolling_task_segments: List[Dict[Text, Tuple]],
     not_sequence : bool
         whether the stock feature vector is a time series.
     sequence_last_dim : bool
-        whether the time series is aligned along the last axis of dimensions.
+        whether the time series is aligned along the last axis of dimensions (e.g., Alpha360 in Qlib).
     to_tensor : bool
         if True, transform all `numpy.ndarray` to `torch.Tensor` at once;
         if False, transform each batch from `numpy.ndarray` to `torch.Tensor` (slow, not recommended)

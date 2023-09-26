@@ -27,7 +27,8 @@ class IncrementalManager:
         lr_model (float): the learning rate of the model
         online_lr (dict): the learning rates during online training
         x_dim (int): the total number of stock indicators.
-        need_permute (bool): whether to permute the last two dimensions of time-series input, specially for Alpha360.
+        need_permute (bool): whether to permute the last two dimensions of time-series input,
+            specially for Alpha360 with the last dimension as time steps.
         over_patience (int): the patience for early stop.
         begin_valid_epoch (int): which epoch to begin validation. Set a moderate one to reduce training time.
     """
