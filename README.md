@@ -12,10 +12,14 @@ which you should put it under `examples/benchmarks_dynamic/incremenetal/` of the
 >
 > The current `_evaluate_metrics` calculates IC based on normalized labels rather than the raw labels, which the followers should revise.
 
-For stable experiments, please refer to our primary repo [SJTU-Quant/qlib](https://github.com/SJTU-Quant/qlib/tree/main/examples/benchmarks_dynamic/incremental) 
+**For stable experiments, please refer to our primary repo [SJTU-Quant/qlib](https://github.com/SJTU-Quant/qlib/tree/main/examples/benchmarks_dynamic/incremental)** 
 
 ## :newspaper: News
-2023/09 :hammer: Support overriding learning rates during online training (meta-valid and meta-test). 
+2023/09/26 :hammer::face_screaming_in_fear: **Fix a serious BUG** in the Qlib example. 
+The previous version did not permute the time series as required in Qlib Alpha360. 
+$\text{\color{red}{Please pull this latest version!!!}}$
+
+2023/09/18 :hammer: Support overriding learning rates during online training (meta-valid and meta-test). 
 It is highly [**recommended**](#remarks) to tune offline and online learning rates.  
 We also **CHANGED** our argparser: the arg `--lr` now means the learning rate of forecast model, while a new arg `--lr_da` means that of data adapter. 
 

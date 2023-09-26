@@ -88,7 +88,7 @@ class Benchmark:
         task = conf["task"]
 
         h_conf = task["dataset"]["kwargs"]["handler"]
-        print(h_conf)
+        # print(h_conf)
 
         if not h_path.exists():
             from qlib.utils import init_instance_by_config
@@ -109,7 +109,7 @@ class Benchmark:
         if self.test_end is not None:
             seg = task["dataset"]["kwargs"]["segments"]["test"]
             task["dataset"]["kwargs"]["segments"]["test"] = seg[0], pd.Timestamp(self.test_end)
-        print(task)
+        # print(task)
         return task
 
 
@@ -118,8 +118,8 @@ class IncrementalExp:
     Example:
         .. code-block:: python
 
-            python -u main.py run_all --forecast_model GRU --market csi300 --data_dir crowd_data --rank_label False \
-            --first_order True --adapt_x True --adapt_y True --num_head 8 --tau 10 \
+            python -u main.py workflow --model_name GRU --market csi300 --data_dir crowd_data --rank_label False
+            --first_order True --adapt_x True --adapt_y True --num_head 8 --tau 10
             --lr 0.001 --lr_da 0.01 --online_lr "{'lr': 0.001, 'lr_da': 0.001, 'lr_ma': 0.001}"
     """
 
@@ -315,7 +315,7 @@ class IncrementalExp:
         qlib.init(provider_uri=self.provider_uri, region="us" if self.data_dir == "us_data" else "cn",)
 
         dataset_conf = self.basic_task['dataset']
-        print('Load dataset...')
+        print('Load dataset...', dataset_conf)
         return init_instance_by_config(dataset_conf).handler._learn
 
     def _init_model(self) -> nn.Module:
@@ -353,7 +353,7 @@ class IncrementalExp:
                                                             data=self._load_data() if data is None else data,
                                                             factor_num=self.factor_num, horizon=self.horizon,
                                                             not_sequence=self.not_sequence,
-                                                            sequence_last_dim=self.alpha == 158,
+                                                            sequence_last_dim=self.alpha == 360,
                                                             to_tensor=self.preprocess_tensor)
                                   for k in ['train', 'valid']}
             framework.fit(rolling_tasks_data['train'], rolling_tasks_data['valid'], checkpoint_path=save_path)
@@ -413,7 +413,7 @@ class IncrementalExp:
                                                     data=self._load_data() if data is None else data,
                                                     factor_num=self.factor_num, horizon=self.horizon,
                                                     not_sequence=self.not_sequence,
-                                                    sequence_last_dim=self.alpha == 158,
+                                                    sequence_last_dim=self.alpha == 360,
                                                     to_tensor=self.preprocess_tensor)
         return framework.inference(meta_tasks_test=rolling_tasks_data, date_slice=self.test_slice)
 
