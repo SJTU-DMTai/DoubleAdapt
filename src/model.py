@@ -178,13 +178,13 @@ class IncrementalManager:
     def _run_task(self, meta_input: Dict[str, Union[pd.Index, torch.Tensor]], phase: str):
         """ A single naive incremental learning task """
         self.framework.opt.zero_grad()
-        y_hat = self.framework(meta_input["X_train"].to(self.framework.device), None, transform=False)
+        y_hat = self.framework(meta_input["X_train"].to(self.framework.device), None)
         loss = self.framework.criterion(y_hat, meta_input["y_train"].to(self.framework.device))
         loss.backward()
         self.framework.opt.step()
         self.framework.opt.zero_grad()
         with torch.no_grad():
-            pred = self.framework(meta_input["X_test"].to(self.framework.device), None, transform=False)
+            pred = self.framework(meta_input["X_test"].to(self.framework.device), None)
         return pred.detach().cpu().numpy()
 
     def inference(self, meta_tasks_test: List[Dict[str, Union[pd.DataFrame, np.ndarray, torch.Tensor]]],
