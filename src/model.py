@@ -348,6 +348,12 @@ class DoubleAdaptManager(IncrementalManager):
             output = pred.detach().cpu().numpy()
 
         """ Optimization of meta-learners """
+        if len(y_test) == 0:
+            # No labeled test data
+            self.framework.model.load_state_dict(fmodel.state_dict())
+            self.framework.opt.state = override_state(self.framework.opt.param_groups, diffopt)
+            return output
+
         loss = self.framework.criterion(pred, y_test)
         if self.adapt_y:
             if not self.first_order:

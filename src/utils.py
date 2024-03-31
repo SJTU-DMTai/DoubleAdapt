@@ -353,7 +353,7 @@ def get_data_from_seg(seg: tuple, dataframe: pd.DataFrame, test: bool=False):
 def preprocess(task_data_list: List[Dict[str, Union[np.ndarray, pd.Index]]],
                factor_num=6, H=1, sequence_last_dim=True, not_sequence=False,
                to_tensor=True,) -> List[Dict[str, Union[np.ndarray, pd.Index, torch.Tensor]]]:
-    skip = []
+    skip_ids = []
     for i, task_data in enumerate(task_data_list):
         data_type = set()
         for k in task_data.keys():
@@ -364,7 +364,7 @@ def preprocess(task_data_list: List[Dict[str, Union[np.ndarray, pd.Index]]],
                 if to_tensor:
                     task_data[k] = torch.tensor(task_data[k], dtype=torch.float32)
         if task_data['y_test'].shape[0] == 0:
-            skip.append(i)
+            skip_ids.append(i)
 
         if not_sequence:
             for dt in data_type:
@@ -384,20 +384,24 @@ def preprocess(task_data_list: List[Dict[str, Union[np.ndarray, pd.Index]]],
 
         test_date = task_data["test_idx"].codes[0] - task_data["test_idx"].codes[0][0]
         task_data["meta_end"] = (test_date <= (test_date[-1] - H + 1)).sum()
-    if skip:
+
+    if skip_ids:
         ''' Delete tasks with empty test data '''
-        j = 0
-        for idx, i in enumerate(skip):
-            if i < j:
-                continue
-            j = i + 1
-            k = idx + 1
-            while j == skip[k]:
-                k += 1
-                j = skip[k]
-            for key in ['X_train', 'y_train']:
-                task_data_list[j][key] = task_data_list[i][key]
-        task_data_list = [task_data_list[i] for i in range(len(task_data_list)) if i not in skip]
+        i = 0
+        while i < len(skip_ids):
+            task_w_train_wo_test = task_data_list[skip_ids[i]]
+            # loop to skip continuous empty test data.
+            while i + 1 < len(skip_ids) and skip_ids[i + 1] == skip_ids[i] + 1:
+                i += 1
+            # When test data comes, the current task has no training data and should look back
+            not_skip = skip_ids[i] + 1
+            if not_skip < len(task_data_list):
+                for key in task_w_train_wo_test.keys():
+                    if 'train' in key:
+                        task_data_list[not_skip][key] = task_w_train_wo_test[key]
+            i += 1
+
+        task_data_list = [task_data_list[i] for i in range(len(task_data_list)) if i not in skip_ids]
     return task_data_list
 
 
