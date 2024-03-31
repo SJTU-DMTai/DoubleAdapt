@@ -1,9 +1,8 @@
 # DoubleAdapt (KDD'23)
 
 ## :newspaper: News
-2023/09/26 :hammer:😱 **Fix a serious BUG** in the Qlib example. 
-The previous version did not permute the time series as required in Qlib Alpha360. 
-$\text{\color{red}{Please pull this latest version!!!}}$
+2023/09/26 :hammer: Fix a serious BUG in the Qlib example. 
+The previous version did not permute the time series as required in Qlib Alpha360.
 
 2023/09/18 :hammer: Support overriding learning rates during online training (meta-valid and meta-test). 
 It is highly [**recommended**](#remarks) to tune offline and online learning rates.  
