@@ -287,9 +287,9 @@ class DoubleAdaptManager(IncrementalManager):
     def override_online_lr_(self):
         if self.online_lr is not None:
             if 'lr_model' in self.online_lr:
-                self.lr_model = self.online_lr['lr_model']
+                self.framework.opt.param_groups[0]['lr'] = self.online_lr['lr_model']
             if 'lr_ma' in self.online_lr:
-                self.framework.opt.param_groups[0]['lr'] = self.online_lr['lr_ma']
+                self.lr_model = self.online_lr['lr_ma']
             if 'lr_da' in self.online_lr:
                 self.opt.param_groups[0]['lr'] = self.online_lr['lr_da']
             else:
