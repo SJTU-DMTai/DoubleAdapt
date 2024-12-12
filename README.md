@@ -8,12 +8,11 @@ which you should put it under `examples/benchmarks_dynamic/incremenetal/` of the
 
 > If you want to use any other dataset or pytorch model, 
 > reimplement three functions, `_load_data`, `_init_model`, and `_evaluate_metrics` in `main.IncrementalExp`.
->
 > The current `_evaluate_metrics` calculates IC based on normalized labels rather than the raw labels, which the followers should revise.
 
 **For stable experiments, please refer to our primary repo [SJTU-Quant/qlib](https://github.com/SJTU-Quant/qlib/tree/main/examples/benchmarks_dynamic/incremental) to reproduce results reported in our paper** 
 
-## Suggestions for Enhancement
+## Important Suggestions before Deployment
 ### Re-devise the data adapter
 We mainly experiment on a simple dataset Alpha360, and our proposed feature adaptation only involves 6$\times$6 affine transformation with a few parameters to learn. 
 Since common practice in quantative investment is based on hundreds of factors (e.g., Alpha158), our fully connected layer is over-parameterized and achieves suboptimal performance. It would be better to design a new data adapter. Below are some more lightweight designs:
