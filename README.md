@@ -13,20 +13,21 @@ which you should put it under `examples/benchmarks_dynamic/incremenetal/` of the
 **For stable experiments, please refer to our primary repo [SJTU-Quant/qlib](https://github.com/SJTU-Quant/qlib/tree/main/examples/benchmarks_dynamic/incremental) to reproduce results reported in our paper** 
 
 ## Important Suggestions before Deployment
-### Re-devise the data adapter
-We mainly experiment on a simple dataset Alpha360, and our proposed feature adaptation only involves 6$\times$6 affine transformation with a few parameters to learn. 
-Since common practice in quantative investment is based on hundreds of factors (e.g., Alpha158), our fully connected layer is over-parameterized and achieves suboptimal performance. It would be better to design a new data adapter. Below are some more lightweight designs:
-- Divide the factors into different groups and learn affine transformation within the same group, though ignoring interactions between factors of different groups.
-- Learn a hypernetwork that transforms the embedding of each factor, while the hypernetwork is shared by all factors.
-- Use normalization flows which are based on element-wise product.
-
-As for general multivariate time series forecasting, we empirically found that an channel-independent data adapter is desirable, which transforms the lookback/horizon window of each variable independently.
-
-If you meet any question or issue, please let us know. We are glad to discuss with you.
+Sorry for that our experimental settings followed prior works but are not optimal in practical usages. We provide some suggestions below to help you successfully customize DoubleAdapt for application.
 
 ### Combine incremental learning (IL) with rolling retraining (RR)
 Though our paper consider RR as a comparison method against IL, they are orthogonal to each other. 
 For more profits, a recommended setting is to retrain DoubleAdapt from scratch every month and, during the month, perform DoubleAdapt every 2~3 trading days.
+
+### Re-devise the data adapter
+We mainly experiment on a simple dataset Alpha360, and our proposed feature adaptation only involves 6$\times$6 affine transformation with a few parameters to learn. 
+Since common practice in quantative investment is based on hundreds of factors (e.g., Alpha158), our fully connected layer is over-parameterized and achieves suboptimal performance. It would be better to design a new data adapter. Below are some more lightweight designs:
+- Divide the factors into different groups and learn affine transformation within the same group, though ignoring interactions between factors of different groups.
+- Or: Apply the same transformation on the embedding of each factor. Learning element-wise operations (e.g. normalizing flows) over all factor embeddings.
+
+As for general multivariate time series forecasting, we empirically found that an channel-independent data adapter is desirable, which transforms the lookback/horizon window of each variable independently.
+
+If you meet any question or issue, please let us know. We are glad to discuss with you.
 
 
 ### Grid search on learning rates during offline and online training
