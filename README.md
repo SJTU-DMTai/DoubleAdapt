@@ -66,7 +66,7 @@ conda install higher -c conda-forge
 
 ### RAM
 
-This implementation requires ~8GB RAM on CSI500 when the update interval `step` is set to 20 trading days. In practical cases, we recommend an update per 2~3 trading days.
+This implementation requires \~8GB RAM on CSI500 when the update interval `step` is set to 20 trading days. In practical cases, we recommend an update per 2\~3 trading days.
 
 You can also set `--preprocess_tensor False`, reducing RAM occupation to ~5GB (peak 8GB before training). 
 Then, the data slices are created as virtual views of `pandas.DataFrame`, and the duplicates share the same memory address. 
@@ -105,7 +105,7 @@ It is recommended to let `step` be greater than `horizon` by at least 3 or 4, e.
 
 ## Cite
 If you find this useful for your work, please consider citing it as follows:
-```bash
+```
 @InProceedings{DoubleAdapt,
   author       = {Lifan Zhao and Shuming Kong and Yanyan Shen},
   booktitle    = {Proceedings of the 29th {ACM} {SIGKDD} Conference on Knowledge Discovery and Data Mining},
